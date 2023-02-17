@@ -24,7 +24,7 @@ One line explanation of each service does:
 - **snmp_exporter**: Forwards SNMP traffic from SNMP devices to Promethues
 - **cAdvisor**: Sends Docker container metrics to Prometheus
 
-*This repo is built on top of the excellent work done in* [grafana-loki-syslog-aio](https://github.com/lux4rd0/grafana-loki-syslog-aio).
+*This repo is inspired by the excellent work done in* [grafana-loki-syslog-aio](https://github.com/lux4rd0/grafana-loki-syslog-aio).
 
 ## Running
 
