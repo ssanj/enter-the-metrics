@@ -1,0 +1,148 @@
+version: '3.3'
+
+networks:
+  loki: {}
+
+services:
+
+  grafana:
+    container_name: grafana
+
+    # See: https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#override-configuration-with-environment-variables
+    environment:
+      - GF_LOG_MODE=console file
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=true
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=true
+    image: grafana/grafana:latest
+    networks:
+      loki: null
+    ports:
+    - protocol: tcp
+      published: 3000
+      target: 3000
+    restart: always
+    # See: https://grafana.com/docs/grafana/latest/setup-grafana/configure-docker/
+    volumes:
+      - ./grafana/data:/var/lib/grafana
+      - ./grafana/config/provisioning:/etc/grafana/provisioning
+      - ./grafana/logs:/var/log/grafana
+
+  prometheus:
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    - --storage.tsdb.path=/prometheus
+    - --web.enable-admin-api
+    - --web.enable-lifecycle
+    container_name: prometheus
+    image: prom/prometheus:latest
+    networks:
+      loki: null
+    ports:
+    - published: 9090
+      target: 9090
+    restart: always
+    volumes:
+    - ./prometheus/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  loki:
+    command: -config.file=/etc/loki/loki-config.yml
+    container_name: loki
+    image: grafana/loki:latest
+    networks:
+      loki: null
+    ports:
+    - protocol: tcp
+      published: 3100
+      target: 3100
+    restart: always
+    volumes:
+    - ./loki/config/loki-config.yml:/etc/loki/loki-config.yml:ro
+
+  promtail:
+    command: -config.file=/etc/promtail/promtail-config.yml
+    container_name: promtail
+    image: grafana/promtail:latest
+    networks:
+      loki: null
+    ports:
+    - protocol: tcp
+      published: 1514
+      target: 1514
+    - protocol: tcp
+      published: 9080
+      target: 9080
+    restart: always
+    volumes:
+    - ./promtail/config/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+
+  syslog-ng:
+    command: -edv
+    container_name: syslog-ng
+    depends_on:
+    - promtail
+    image: balabit/syslog-ng:latest
+    networks:
+      loki: null
+    ports:
+    - protocol: udp
+      published: 514
+      target: 514
+    - protocol: tcp
+      published: 601
+      target: 601
+    restart: always
+    volumes:
+    - ./syslog-ng/config/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro
+
+  node-exporter:
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    container_name: node-exporter
+    image: prom/node-exporter:latest
+    networks:
+      loki: null
+    ports:
+    - published: 9100
+      target: 9100
+    restart: always
+
+  snmp-exporter:
+    container_name: snmp-exporter
+    image: prom/snmp-exporter:latest
+    volumes:
+    - ./snmp-exporter/config:/config
+    command:
+      - '--config.file=/config/snmp.yml'
+      - '--log.level=debug'
+    ports:
+    - published: 9116
+      target: 9116
+    restart: always
+
+  cadvisor:
+    container_name: cadvisor
+    image: gcr.io/cadvisor/cadvisor:latest
+    networks:
+      loki: null
+    ports:
+    - published: 8080
+      target: 8080
+    restart: always
+    privileged: true
+    volumes:
+    - /:/rootfs:ro
+    - /var/run:/var/run:rw
+    - /var/run/docker.sock:/var/run/docker.sock:rw
+    - /sys:/sys:ro
+    - /var/lib/docker:/var/lib/docker:ro
+    - /dev/disk/:/dev/disk:ro
+    devices:
+    - /dev/kmsg:/dev/kmsg
