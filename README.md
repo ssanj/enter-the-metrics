@@ -153,6 +153,53 @@ For example to query your Grafana metrics hit: `http://<host ip running grafan>:
 | syslog-ng| - | udp 514, tcp 601 |
 
 
+## Issues
+
+If you run this stack as a non-root user (for example on Linux), you can run into permission issues such as:
+
+> mkdir: can't create directory '/var/lib/grafana/plugins': Permission denied
+> GF_PATHS_DATA='/var/lib/grafana' is not writable.
+
+This will be evident when you run `docker ps` and see Grafana continuously restarting. You can have a look at its logs
+via `docker logs grafana`
+
+
+This is because Grafana [expects](https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/#migrate-to-v51-or-later) specific users and groups to control the Grafana configuration directories:
+
+```
+uid=472(grafana) gid=0(root) groups=0(root)
+```
+
+You will have to do the following on your volume mounted to `/var/lib/grafana`:
+
+```
+chown -R 472:0 ./grafana/data
+```
+
+
+Another way to do this, as recommended in the Grafana [documentation](https://grafana.com/docs/grafana/latest/setup-grafana/installation/docker/#migrate-to-v51-or-later), is to jump onto the started container and change ownership of the relevant directories.
+
+Jump onto the Grafana container with:
+
+```
+docker exec -it <CONTAINER ID> bash
+```
+
+Note: The <CONTAINER_ID> can be found by running `docker ps --format="{{.ID}}\t{{.Names}}"`:
+
+```
+22c444431284    grafana
+```
+
+Then change the ownership of the relevant directories:
+
+```
+# in the container you just started:
+chown -R root:root /etc/grafana && \
+chmod -R a+r /etc/grafana && \
+chown -R grafana:grafana /var/lib/grafana && \
+chown -R grafana:grafana /usr/share/grafana
+```
 
 ## Starting from a Clean Slate
 
